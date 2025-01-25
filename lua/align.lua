@@ -9,33 +9,35 @@ end
 
 function M.align_lines(pat, startline, endline)
     local re = vim.regex(pat)
-    local max = -1
     local lines = vim.api.nvim_buf_get_lines(0, startline, endline, false)
-    for _, line in pairs(lines) do
-        local s = re:match_str(line)
-        s = vim.str_utfindex(line, s)
-        if s and max < s then
-            max = s
+
+    local max_positions = {}
+    local split_lines = {}
+
+    for _, line in ipairs(lines) do
+        local parts = vim.split(line, pat, { plain = true, trimempty = false })
+        table.insert(split_lines, parts)
+
+        for i, part in ipairs(parts) do
+            local length = vim.str_utfindex(part)
+            max_positions[i] = math.max(max_positions[i] or 0, length)
         end
     end
 
-    if max == -1 then return end
-
-    for i, line in pairs(lines) do
-        local s = re:match_str(line)
-        s = vim.str_utfindex(line, s)
-        if s then
-            local rep = max - s
-            local newline = {
-                string.sub(line, 1, s),
-                string.rep(' ', rep),
-                string.sub(line, s + 1),
-            }
-            lines[i] = table.concat(newline)
+    for i, parts in ipairs(split_lines) do
+        local new_line = {}
+        for j, part in ipairs(parts) do
+            if j < #parts then
+                table.insert(new_line, part .. string.rep(" ", max_positions[j] - vim.str_utfindex(part)))
+            else
+                table.insert(new_line, part)
+            end
         end
+        lines[i] = table.concat(new_line, pat)
     end
 
     vim.api.nvim_buf_set_lines(0, startline, endline, false, lines)
 end
 
 return M
+
